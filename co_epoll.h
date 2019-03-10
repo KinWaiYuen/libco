@@ -60,6 +60,8 @@ enum EPOLL_EVENTS
 #define EPOLL_CTL_ADD 1
 #define EPOLL_CTL_DEL 2
 #define EPOLL_CTL_MOD 3
+
+//epoll数据 有指针和fd
 typedef union epoll_data
 {
 	void *ptr;
@@ -69,12 +71,14 @@ typedef union epoll_data
 
 } epoll_data_t;
 
+//event事件
 struct epoll_event
 {
 	uint32_t events;
 	epoll_data_t data;
 };
 
+//eopll返回结果
 struct co_epoll_res
 {
 	int size;

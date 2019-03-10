@@ -25,6 +25,7 @@ struct coctx_param_t
 	const void *s1;
 	const void *s2;
 };
+//协程上下文
 struct coctx_t
 {
 #if defined(__i386__)

@@ -62,6 +62,7 @@ static inline pid_t GetPid()
 	char **p = (char**)pthread_self();
 	return p ? *(pid_t*)(p + 18) : getpid();
 }
+//å…¨å±€çš„socket fdè¡¨ socket fdä¸Šé™åˆ°102400
 static rpchook_t *g_rpchook_socket_fd[ 102400 ] = { 0 };
 
 typedef int (*socket_pfn_t)(int domain, int type, int protocol);
@@ -114,6 +115,7 @@ static recv_pfn_t g_sys_recv_func 		= (recv_pfn_t)dlsym(RTLD_NEXT,"recv");
 
 static poll_pfn_t g_sys_poll_func 		= (poll_pfn_t)dlsym(RTLD_NEXT,"poll");
 
+//é“¾æ¥åˆ°ä¸€ä¸ªé…ç½®å¥½åå­—çš„ç³»ç»Ÿé“¾æ¥ä¸­
 static setsockopt_pfn_t g_sys_setsockopt_func 
 										= (setsockopt_pfn_t)dlsym(RTLD_NEXT,"setsockopt");
 static fcntl_pfn_t g_sys_fcntl_func 	= (fcntl_pfn_t)dlsym(RTLD_NEXT,"fcntl");
@@ -168,6 +170,7 @@ struct rpchook_connagent_head_t
 }__attribute__((packed));
 
 
+//hookåˆ°""ç³»ç»Ÿå‡½æ•°"
 #define HOOK_SYS_FUNC(name) if( !g_sys_##name##_func ) { g_sys_##name##_func = (name##_pfn_t)dlsym(RTLD_NEXT,#name); }
 
 static inline ll64_t diff_ms(struct timeval &begin,struct timeval &end)
@@ -989,7 +992,7 @@ struct hostent *co_gethostbyname(const char *name)
 #endif
 
 
-void co_enable_hook_sys() //Õâº¯Êı±ØĞëÔÚÕâÀï,·ñÔò±¾ÎÄ¼ş»á±»ºöÂÔ£¡£¡£¡
+void co_enable_hook_sys() //syshookç”Ÿæ•ˆ
 {
 	stCoRoutine_t *co = GetCurrThreadCo();
 	if( co )

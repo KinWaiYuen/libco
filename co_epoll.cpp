@@ -32,6 +32,7 @@ int	co_epoll_ctl( int epfd,int op,int fd,struct epoll_event * ev )
 {
 	return epoll_ctl( epfd,op,fd,ev );
 }
+//如果是linux 使用epoll
 int	co_epoll_create( int size )
 {
 	return epoll_create( size );
@@ -130,6 +131,7 @@ struct kevent_pair_t
 	int events;
 	uint64_t u64;
 };
+//mac使用kqueue
 int co_epoll_create( int size )
 {
 	return kqueue();

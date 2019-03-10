@@ -22,13 +22,16 @@
 #include "co_routine.h"
 #include "coctx.h"
 struct stCoRoutineEnv_t;
+//协程spec 观察对象 
 struct stCoSpec_t
 {
 	void *value;
 };
 
+//协程任务栈内存
 struct stStackMem_t
 {
+	//当前协程
 	stCoRoutine_t* occupy_co;
 	int stack_size;
 	char* stack_bp; //stack_buffer + stack_size
@@ -36,6 +39,7 @@ struct stStackMem_t
 
 };
 
+//共享栈
 struct stShareStack_t
 {
 	unsigned int alloc_idx;
@@ -46,11 +50,15 @@ struct stShareStack_t
 
 
 
+//协程结构    
+//有env pfn coctx stackmem  spec 
 struct stCoRoutine_t
 {
 	stCoRoutineEnv_t *env;
+	
 	pfn_co_routine_t pfn;
 	void *arg;
+
 	coctx_t ctx;
 
 	char cStart;
@@ -69,6 +77,7 @@ struct stCoRoutine_t
 	char* stack_sp; 
 	unsigned int save_size;
 	char* save_buffer;
+
 
 	stCoSpec_t aSpec[1024];
 

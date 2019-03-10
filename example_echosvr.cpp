@@ -42,6 +42,7 @@
 #endif
 
 using namespace std;
+//协程任务struct
 struct task_t
 {
 	stCoRoutine_t *co;
@@ -86,7 +87,7 @@ static void *readwrite_routine( void *arg )
 			pf.fd = fd;
 			pf.events = (POLLIN|POLLERR|POLLHUP);
 			co_poll( co_get_epoll_ct(),&pf,1,1000);
-
+			//把读到的直接写到buffer中 
 			int ret = read( fd,buf,sizeof(buf) );
 			if( ret > 0 )
 			{
@@ -104,7 +105,7 @@ static void *readwrite_routine( void *arg )
 	return 0;
 }
 int co_accept(int fd, struct sockaddr *addr, socklen_t *len );
-static void *accept_routine( void * )
+static void * accept_routine( void * )
 {
 	co_enable_hook_sys();
 	printf("accept_routine\n");
@@ -141,9 +142,12 @@ static void *accept_routine( void * )
 			continue;
 		}
 		SetNonBlock( fd );
+		//把读写顶stack顶部的栈拿出来
 		task_t *co = g_readwrite.top();
+		//新connfd给stack的栈
 		co->fd = fd;
 		g_readwrite.pop();
+		//执行co的任务
 		co_resume( co->co );
 	}
 	return 0;
@@ -170,6 +174,7 @@ static void SetAddr(const char *pszIP,const unsigned short shPort,struct sockadd
 
 }
 
+//创建socket 对应到协程自己定义的系统函数并且bind
 static int CreateTcpSocket(const unsigned short shPort /* = 0 */,const char *pszIP /* = "*" */,bool bReuse /* = false */)
 {
 	int fd = socket(AF_INET,SOCK_STREAM, IPPROTO_TCP);
@@ -180,6 +185,7 @@ static int CreateTcpSocket(const unsigned short shPort /* = 0 */,const char *psz
 			if(bReuse)
 			{
 				int nReuseAddr = 1;
+				//socket fd已经对应到协程自己定义的系统函数
 				setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&nReuseAddr,sizeof(nReuseAddr));
 			}
 			struct sockaddr_in addr ;
@@ -211,13 +217,15 @@ int main(int argc,char *argv[])
 	bool deamonize = argc >= 6 && strcmp(argv[5], "-d") == 0;
 
 	g_listen_fd = CreateTcpSocket( port,ip,true );
+	//监听socket
 	listen( g_listen_fd,1024 );
 	if(g_listen_fd==-1){
 		printf("Port %d is in use\n", port);
 		return -1;
 	}
 	printf("listen %d %s:%d\n",g_listen_fd,ip,port);
-
+ 
+	//fcnt更改fd属性为非阻塞
 	SetNonBlock( g_listen_fd );
 
 	for(int k=0;k<proccnt;k++)
@@ -232,15 +240,18 @@ int main(int argc,char *argv[])
 		{
 			break;
 		}
+		//每个栈上分配cnt个协程 用于读写fuffer
 		for(int i=0;i<cnt;i++)
 		{
 			task_t * task = (task_t*)calloc( 1,sizeof(task_t) );
 			task->fd = -1;
 
 			co_create( &(task->co),NULL,readwrite_routine,task );
+			//co_create后,task->co的内容就是当前初始化后的协程结构
 			co_resume( task->co );
 
 		}
+		//另外开accept的协程 用于接受连接
 		stCoRoutine_t *accept_co = NULL;
 		co_create( &accept_co,NULL,accept_routine,0 );
 		co_resume( accept_co );

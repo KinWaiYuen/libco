@@ -112,22 +112,28 @@ int coctx_make( coctx_t *ctx,coctx_pfn_t pfn,const void *s,const void *s1 )
 	return 0;
 }
 #elif defined(__x86_64__)
+//创建上下文
 int coctx_make( coctx_t *ctx,coctx_pfn_t pfn,const void *s,const void *s1 )
 {
+	//sp指针:zp+栈大小
 	char *sp = ctx->ss_sp + ctx->ss_size;
 	sp = (char*) ((unsigned long)sp & -16LL  );
-
+	//ctx->regs清空
 	memset(ctx->regs, 0, sizeof(ctx->regs));
 
+	//regs[13]:rsp
 	ctx->regs[ kRSP ] = sp - 8;
 
+	//regs[9]:ret;
 	ctx->regs[ kRETAddr] = (char*)pfn;
-
+	//reg[7]: rdi 函数第二个参数
 	ctx->regs[ kRDI ] = (char*)s;
+	//reg[8]: rsi 函数参数
 	ctx->regs[ kRSI ] = (char*)s1;
 	return 0;
 }
 
+//协程初始化 内存设置为0
 int coctx_init( coctx_t *ctx )
 {
 	memset( ctx,0,sizeof(*ctx));
