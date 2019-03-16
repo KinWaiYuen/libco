@@ -314,7 +314,7 @@ static stStackMem_t* co_get_stackmem(stShareStack_t* share_stack)
 // ----------------------------------------------------------------------------
 struct stTimeoutItemLink_t;
 struct stTimeoutItem_t;
-//epoll信息
+//epoll信息 记录fd 超时时间 超时列表 活动列表 以及epoll的返回结果
 struct stCoEpoll_t
 {
 	int iEpollFd;
@@ -476,7 +476,7 @@ static int CoRoutineFunc( stCoRoutine_t *co,void * )
 
 
 
-//创建线程环境
+//根据入参env,attr,pfn, arg创建协程,返回coroutine
 struct stCoRoutine_t *co_create_env( stCoRoutineEnv_t * env, const stCoRoutineAttr_t* attr,
 		pfn_co_routine_t pfn,void *arg )
 {
@@ -496,6 +496,11 @@ struct stCoRoutine_t *co_create_env( stCoRoutineEnv_t * env, const stCoRoutineAt
 		at.stack_size = 1024 * 1024 * 8;
 	}
 
+	//字节对齐
+	//如果& 0xFFF >0  就是低位有0的时候
+	//&= ~0xFFF  就是低位清空
+	//+= 0x1000 清空位补齐
+	//确保是xxx000
 	if( at.stack_size & 0xFFF ) 
 	{
 		at.stack_size &= ~0xFFF;
@@ -573,7 +578,7 @@ void co_release( stCoRoutine_t *co )
 
 void co_swap(stCoRoutine_t* curr, stCoRoutine_t* pending_co);
 
-//协程继续.co中的
+//切入协程co
 void co_resume( stCoRoutine_t *co )
 {
 	stCoRoutineEnv_t *env = co->env;
@@ -614,6 +619,7 @@ void co_yield( stCoRoutine_t *co )
 	co_yield_env( co->env );
 }
 
+//对stack_buffer进行malloc重新分配,保存新的位置
 void save_stack_buffer(stCoRoutine_t* occupy_co)
 {
 	///copy out
@@ -651,16 +657,16 @@ void co_swap(stCoRoutine_t* curr, stCoRoutine_t* pending_co)
 	//如果协程栈是共享的
 	else 
 	{
-		//环境中即将进行的co是入参pending_co
+		//env的pengding_co设置为即将的协程
 		env->pending_co = pending_co;
 		//get last occupy co on the same stack mem
-		//把将要处理的协程放入occupy_co中
+		//取出即将协程的occupy_co
 		stCoRoutine_t* occupy_co = pending_co->stack_mem->occupy_co;
 		//set pending co to occupy thest stack mem;
-		//pending_co的栈中的occupy_co设置为自己  应该说指向自己
+		//即将协程的occupy_co设置为自己 因为后续协程就是即将协程
 		pending_co->stack_mem->occupy_co = pending_co;
 
-		//当前环境的occupy_co设置为入参pending的
+		//环境occupy_co设置为即将协程的occupy_co
 		env->occupy_co = occupy_co;
 		//如果当前协程存在且当前协程不等于即将处理的
 		if (occupy_co && occupy_co != pending_co)
@@ -758,6 +764,7 @@ static __thread stCoRoutineEnv_t* gCoEnvPerThread = NULL;
 void co_init_curr_thread_env()
 {
 	gCoEnvPerThread = (stCoRoutineEnv_t*)calloc( 1, sizeof(stCoRoutineEnv_t) );
+	//线程全局环境
 	stCoRoutineEnv_t *env = gCoEnvPerThread;
 
 	env->iCallStackSize = 0;
@@ -772,6 +779,7 @@ void co_init_curr_thread_env()
 	env->pCallStack[ env->iCallStackSize++ ] = self;
 
 	stCoEpoll_t *ev = AllocEpoll();
+	//全局环境设置epoll结构体
 	SetEpoll( env,ev );
 }
 stCoRoutineEnv_t *co_get_curr_thread_env()
@@ -807,6 +815,7 @@ void OnPollPreparePfn( stTimeoutItem_t * ap,struct epoll_event &e,stTimeoutItemL
 }
 
 
+//监听fd,可处理的fd进行处理,并对超时队列进行处理
 void co_eventloop( stCoEpoll_t *ctx,pfn_co_eventloop_t pfn,void *arg )
 {
 	if( !ctx->result )
@@ -892,7 +901,7 @@ void OnCoroutineEvent( stTimeoutItem_t * ap )
 	co_resume( co );
 }
 
-//创建epoll
+//创建epoll ctx
 stCoEpoll_t *AllocEpoll()
 {
 	stCoEpoll_t *ctx = (stCoEpoll_t*)calloc( 1,sizeof(stCoEpoll_t) );
@@ -934,8 +943,8 @@ stCoRoutine_t *GetCurrThreadCo( )
 
 
 typedef int (*poll_pfn_t)(struct pollfd fds[], nfds_t nfds, int timeout);
-// 处理poll事件
-//ctx:上下文
+// 处理poll事件,添加到poll事件中,并切出协程
+//ctx:epoll结构体
 //fds poll的fd数组
 //nfds 多少个fd
 //timeout 超时
@@ -1065,6 +1074,7 @@ void SetEpoll( stCoRoutineEnv_t *env,stCoEpoll_t *ev )
 {
 	env->pEpoll = ev;
 }
+//获取当前环境的eopll结构体
 stCoEpoll_t *co_get_epoll_ct()
 {
 	if( !co_get_curr_thread_env() )
@@ -1146,6 +1156,7 @@ static void OnSignalProcessEvent( stTimeoutItem_t * ap )
 }
 
 stCoCondItem_t *co_cond_pop( stCoCond_t *link );
+//si出栈,放入超时队列
 int co_cond_signal( stCoCond_t *si )
 {
 	stCoCondItem_t * sp = co_cond_pop( si );
@@ -1174,7 +1185,7 @@ int co_cond_broadcast( stCoCond_t *si )
 	return 0;
 }
 
-
+//添加timeout并切出协程
 int co_cond_timedwait( stCoCond_t *link,int ms )
 {
 	stCoCondItem_t* psi = (stCoCondItem_t*)calloc(1, sizeof(stCoCondItem_t));

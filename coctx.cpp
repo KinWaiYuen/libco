@@ -88,6 +88,7 @@ extern "C"
 	extern void coctx_swap( coctx_t *,coctx_t* ) asm("coctx_swap");
 };
 #if defined(__i386__)
+//对ctx初始化 set 0
 int coctx_init( coctx_t *ctx )
 {
 	memset( ctx,0,sizeof(*ctx));
@@ -112,7 +113,7 @@ int coctx_make( coctx_t *ctx,coctx_pfn_t pfn,const void *s,const void *s1 )
 	return 0;
 }
 #elif defined(__x86_64__)
-//创建上下文
+//创建上下文 s传入协程co 
 int coctx_make( coctx_t *ctx,coctx_pfn_t pfn,const void *s,const void *s1 )
 {
 	//sp指针:zp+栈大小
